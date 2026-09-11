@@ -54,3 +54,4 @@ To ensure a frictionless and secure experience during a live hackathon:
 * **Zero Pollution:** The entire backend infrastructure (API + Judge0 + DB) is containerized via Docker. Post-event, a simple `docker compose down -v` wipes the server completely clean.
 
 ---
+# cp-interface
