@@ -10,52 +10,6 @@ from textual.widgets.option_list import Option
 from widgets.effects import GlitchEffect 
 from widgets.cutom_widgets import BabelPushTab, BabelTextArea, CypherMarkdown, TypewriterMarkdown, BabelExecutor
 
-
-FAUX_SUJETS = {
-    "chal_1": "# Challenge 01: The Matrix\n\nTrouvez les deux nœuds d'énergie...",
-    "chal_2": "# Challenge 02: Babel Syntax\n\nÉcrivez un parseur pour l'EBNF...",
-    "chal_3": "# Challenge 03: Memory Leak\n\nDétectez la fuite dans cet allocateur C++98...",
-    "chal_4": "# Challenge 04: The Oracle\n\nPrédisez le prochain cycle d'horloge...",
-}
-
-sujet = """
-# Challenge 01: The Matrix Initialization
-
-## Contexte
-Bienvenue dans l'arène du Projet Babel. 
-
-Avant de pouvoir déployer vos algorithmes sur le réseau principal, le serveur d'évaluation requiert une initialisation du noyau de routage. Le système vous fournit un flux d'entiers représentant l'état énergétique des nœuds de communication.
-
-## Mission
-Écrivez une fonction qui analyse le flux et identifie les **deux nœuds** dont l'énergie combinée correspond exactement à la `cible` d'activation. 
-
-## Spécifications
-
-**Entrées :**
-* `signals` : Une liste d'entiers représentant l'énergie des nœuds (longueur de 2 à 10 000).
-* `target` : L'entier cible à atteindre.
-
-**Sortie :**
-* Retournez une liste contenant les indices exacts de ces deux nœuds.
-
-## Contraintes
-* Complexité temporelle attendue : **O(N)**.
-* Complexité spatiale autorisée : **O(N)**.
-* Chaque jeu de test possède **exactement une seule solution**.
-* Il est interdit d'utiliser la même adresse mémoire (le même nœud) deux fois.
-
----
-
-## Exemples
-
-### Cas nominal
-```python
-Entrée : signals = [2, 7, 11, 15], target = 9
-Sortie : [0, 1]
-Explication : signals[0] + signals[1] == 9, on retourne les indices 0 et 1.
-"""
-
-
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.containers import Horizontal, Vertical
@@ -66,13 +20,6 @@ class ArenaScreen(Screen):
 
     CSS_PATH = "../styles/arena-screen.css"
     AUTO_FOCUS = ""
-
-    mes_challenges = [
-        Option("Challenge 01: The Matrix Initialization", id="chal_1"),
-        Option("Challenge 02: Babel Syntax Analyzer", id="chal_2"),
-        Option("Challenge 03: Memory Leak Hunt", id="chal_3"),
-        Option("Challenge 04: The Oracle's Prediction", id="chal_4"),
-    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -127,24 +74,79 @@ class ArenaScreen(Screen):
         table.cursor_type = "row"
         table.add_columns("Rank", "User", "Score")
 
-        console = self.query_one("#console-output")
-
-        import random
-        base_names = ["Neo", "Trinity", "Morpheus", "Cypher", "Ghost", "Niobe", "Oracle", "Smith", "Babel", "Root"]
-        for i in range(1, 101):
-            username = f"{random.choice(base_names)}_{random.randint(10, 99)}"
-            score = 10000 - (i * random.randint(10, 80))
-            table.add_row(f"#{i}", username, str(score))
-
-        self.query_one("#chrono", Label).update("--:--:--")
+        self.query_one("#chrono", Label).update("󰔛 WAITING")
+        
+        self.query_one("#editor-workspace").styles.display = "none"
+        self.query_one("#btn-back").styles.display = "none"
+        
+        layout = self.query_one("#arena-layout")
+        layout.styles.opacity = 0.0
         
         self.chrono_timer = None
         self.end_time = None
 
-        self.set_timer(0.1, self.fade_in_layout)
-        
         await self.fetch_and_load_problems()
+        await self.load_leaderboard()
+        await self.load_user_data()
+        
+        self.fade_in_layout()
+        
+        await self.sync_contest_state()
+        self.set_interval(15.0, self.sync_contest_state)
 
+    async def sync_contest_state(self) -> None:
+        try:
+            status = await self.app.api_client.get_contest_status()
+            
+            if status.get("is_active"):
+                remaining = status.get("remaining_seconds", 0)
+                self.sync_server_chrono(remaining)
+                
+                if self.chrono_timer is None:
+                    self.chrono_timer = self.set_interval(1.0, self._update_chrono_display)
+                    
+            else:
+                self.stop_server_chrono()
+                self.query_one("#chrono", Label).update("󰔛 WAITING")
+                
+        except Exception as e:
+            self.app.log.error(f"Sync error: {e}")
+            self.query_one("#chrono", Label).update("󰚌 ERROR")
+
+    async def load_user_data(self) -> None:
+        try:
+            btn_stats = self.query_one("#btn-toggle-stats")
+            
+            profile = await self.app.api_client.get_my_profile()
+            
+            username = profile.get("username", "Unknown")
+            score = profile.get("score", 0)
+            rank = profile.get("rank", 0)
+            
+            btn_stats.label = f"User: {username} | Score: {score} pts | Rank: {rank}"
+            
+        except Exception as e:
+            self.app.log.error(f"User data UI crash: {e}")
+            try:
+                self.query_one("#btn-toggle-stats").label = "󰆦 Offline | Score: 0 pts | Rank: --"
+            except Exception:
+                pass
+
+    async def load_leaderboard(self) -> None:
+        table = self.query_one("#leaderboard-table", DataTable)
+        table.clear()
+        
+        try:
+            leaderboard_data = await self.app.api_client.get_leaderboard()
+            for user in leaderboard_data:
+                table.add_row(
+                    f"#{user['rank']}", 
+                    user['username'], 
+                    str(user['score'])
+                )
+        except Exception as e:
+            self.app.log.error(f"Leaderboard fetch failed: {e}")
+            table.add_row("󰚌", "Connection Error", "0")
 
 
     def start_server_chrono(self, duration_in_seconds: int) -> None:
@@ -163,7 +165,7 @@ class ArenaScreen(Screen):
         """Déclenché quand le serveur envoie le paquet END_CONTEST."""
         if self.chrono_timer is not None:
             self.chrono_timer.stop()
-        self.query_one("#chrono", Label).update("⏱️ 00:00:00")
+        self.query_one("#chrono", Label).update("󰔛 00:00:00")
         self.end_time = None
 
 
@@ -181,7 +183,7 @@ class ArenaScreen(Screen):
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         
-        time_str = f"⏱️ {hours:02d}:{minutes:02d}:{seconds:02d}"
+        time_str = f"󰔛 {hours:02d}:{minutes:02d}:{seconds:02d}"
         self.query_one("#chrono", Label).update(time_str)
 
 
@@ -249,7 +251,7 @@ class ArenaScreen(Screen):
                 opt_id = f"chal_{p['id']}"
                 self.db_problems[opt_id] = p
                 
-                label = f"󰘨 {p['title']} [{p['difficulty']}]"
+                label = f"󰘨 {p['title']} | {p['difficulty']}"
                 picker.add_option(Option(label, id=opt_id))
                 
             self.set_focus(picker)
@@ -273,19 +275,24 @@ class ArenaScreen(Screen):
         subject_widget = self.query_one("#subject-content", CypherMarkdown)
         subject_widget.decode_text(texte_sujet, duration_sec=0.4)
 
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+    async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option.id == "error":
             return
             
         picker = self.query_one("#subject-picker")
-        
         challenge_id = event.option.id
         problem_data = self.db_problems.get(challenge_id)
         
         if problem_data:
-            texte_sujet = f"# {problem_data['title']}\n\n{problem_data['subject']}"
+            self.current_problem_id = problem_data['id']
+            
+            try:
+                markdown_content = await self.app.api_client.get_problem_subject(self.current_problem_id)
+            except Exception:
+                markdown_content = "󰚌 Error fetching subject file."
+                
             subject_widget = self.query_one("#subject-content", CypherMarkdown)
-            subject_widget.decode_text(texte_sujet, duration_sec=1.0)
+            subject_widget.decode_text(markdown_content, duration_sec=1.0)
 
         picker.styles.animate(
             attribute="opacity",

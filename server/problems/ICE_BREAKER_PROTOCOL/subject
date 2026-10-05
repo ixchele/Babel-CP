@@ -1,0 +1,55 @@
+# [ SECTOR_42 // ICE_BREAKER_PROTOCOL ]
+
+## [ 0x00_MISSION_BRIEF ]
+> **Concept:** 2D Grid Traversal / Shortest Path (BFS)
+> **Threat Level:** MEDIUM
+> **Preamble:** You are facing a grid-based firewall. You must find the shortest path from your entry point to the data core while avoiding defensive nodes (ICE). If no path exists, the connection must be dropped.
+
+## [ 0x01_LORE ]
+The megacorp "OmniCorp" has locked down their mainframe behind a dynamic ICE (Intrusion Countermeasures Electronics) grid. You have successfully injected a payload at a specific sector, but the extraction node is on the other side of the grid. The ICE nodes are actively scanning, and moving through them will instantly fry your neural link. You need an algorithm to chart the fastest safe route through the matrix before the trace program catches up. 
+
+## [ 0x02_OBJECTIVE ]
+Read the grid dimensions and layout from standard input. Find the minimum number of steps required to move from the Start node (`S`) to the Extraction node (`E`). You can only move up, down, left, or right. You cannot pass through ICE nodes (`#`). If the Extraction node is unreachable, output `-1`.
+
+## [ 0x03_INPUT_STDIN ]
+- Line 1: Two space-separated integers `R` (rows) and `C` (columns).
+- Next `R` lines: A string of `C` characters representing the grid.
+  - `.` : Empty space (safe to traverse)
+  - `#` : ICE node (impassable firewall)
+  - `S` : Start node (your payload injection point)
+  - `E` : Extraction node (the data core)
+
+## [ 0x04_OUTPUT_STDOUT ]
+- Print a single integer: the minimum number of steps to reach `E` from `S`.
+- Print `-1` if the extraction is impossible.
+
+## [ 0x05_CONSTRAINTS ]
+- 1 <= R, C <= 1000
+- There is exactly one `S` and one `E` in the grid.
+- Execution time limit: 2.0s
+- Memory limit: 256 MB
+
+## [ 0x06_EXAMPLES ]
+
+### Example 1
+**Input:**
+```
+4 5
+S....
+.###.
+...#.
+.#.E.
+```
+**Output:**
+7
+
+### Example 2
+**Input:**
+```
+3 3
+S##
+###
+##E
+```
+**Output:**
+-1

@@ -34,6 +34,16 @@ class BabelAPIClient:
             response.raise_for_status()
             return response.json()
 
+    async def get_problem_subject(self, problem_id: int) -> str:
+        """Fetches the markdown content from the server."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/problems/{problem_id}/subject",
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json().get("content", "")
+
     async def submit_code(self, problem_id: int, language: str, code: str) -> Dict[str, Any]:
         """Uses the token to submit code to a protected route."""
         payload = {
@@ -48,5 +58,29 @@ class BabelAPIClient:
                 json=payload,
                 headers=self._get_auth_headers()
             )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_leaderboard(self) -> List[Dict[str, Any]]:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/users/leaderboard",
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_my_profile(self) -> Dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/users/me",
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_contest_status(self) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.base_url}/contest/status")
             response.raise_for_status()
             return response.json()
