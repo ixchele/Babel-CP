@@ -2,7 +2,10 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+
 from models import LoginRequest, TokenResponse, User
+from database import SessionLocal, UserDB
 
 SECRET_KEY = "babel-super-secret-key"
 ALGORITHM = "HS256"
@@ -12,10 +15,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-USERS_DB = {
-    "ixchele": {"username": "ixchele", "password": "dbZsgt", "role": "student"},
-    "nameless": {"username": "nameless", "password": "chi7aja", "role": "student"}
-}
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -23,8 +28,7 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -32,29 +36,29 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str|None = payload.get("sub")
+        username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
         
-    user_data = USERS_DB.get(username)
-    if user_data is None:
+    user = db.query(UserDB).filter(UserDB.username == username).first()
+    if user is None:
         raise credentials_exception
         
-    return User(**user_data)
+    return User(username=user.username, role=user.role)
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest):
-    user = USERS_DB.get(payload.username)
+async def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(UserDB).filter(UserDB.username == payload.username).first()
     
-    if not user or user["password"] != payload.password:
+    if not user or user.login_token != payload.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
     
-    access_token = create_access_token(data={"sub": user["username"], "role": user["role"]})
+    access_token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=User)

@@ -136,7 +136,8 @@ class BabelExecutor(Vertical):
                         ("Python", "python"),
                         ("C++", "cpp"),
                         ("C", "c"),
-                        ("Bash", "bash")
+                        ("Bash", "bash"),
+                        ("JavaScript", "javascript")
                     ],
                     id="lang-select",
                     value="python",
@@ -172,7 +173,7 @@ class BabelExecutor(Vertical):
         log.clear()
         log.write(f"[dim]Initializing {lang} environment...[/dim]")
 
-        extensions = {"python": ".py", "cpp": ".cpp", "c": ".c", "bash": ".sh"}
+        extensions = {"python": ".py", "cpp": ".cpp", "c": ".c", "bash": ".sh", "javascript" : ".js"}
         script_filename = f"/tmp/babel_temp_run{extensions.get(lang, '.txt')}"
         bin_filename = "/tmp/babel_temp_run_bin"
         
@@ -201,6 +202,8 @@ class BabelExecutor(Vertical):
             run_cmd = ["python3", script_filename]
         elif lang == "bash":
             run_cmd = ["bash", script_filename]
+        elif lang == "javascript":
+            run_cmd = ["js", script_filename]
 
         try:
             log.write("[dim]Executing program...[/dim]")

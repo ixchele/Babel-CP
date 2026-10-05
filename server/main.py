@@ -1,14 +1,13 @@
 from fastapi import FastAPI
+from database import engine, Base
 import auth
 # import submissions
+import problems
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Project Babel API")
 
-# Connect the routers to the main application
 app.include_router(auth.router)
 # app.include_router(submissions.router)
-
-@app.get("/")
-async def root():
-    """Health check endpoint."""
-    return {"status": "Project Babel Server is running"}
+app.include_router(problems.router)
