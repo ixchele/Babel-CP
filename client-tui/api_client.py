@@ -1,6 +1,8 @@
 import httpx
 from typing import Optional, Dict, Any, List
 
+from tree_sitter_c import language
+
 class BabelAPIClient:
     def __init__(self, base_url: str = "http://127.0.0.1:8000/api"):
         self.base_url = base_url
@@ -82,5 +84,37 @@ class BabelAPIClient:
     async def get_contest_status(self) -> dict:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{self.base_url}/contest/status")
+            response.raise_for_status()
+            return response.json()
+
+    async def submit_code(self, problem_id: int, source_code: str, language: str) -> dict:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self.base_url}/submissions/",
+                json={
+                    "problem_id": problem_id,
+                    "code": source_code,
+                    "language": language,
+                },
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_solved_problems(self) -> list:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/users/me/solved", # Adjust the prefix if needed
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_resolved_problems(self) -> list:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/submission/resolved", 
+                headers=self._get_auth_headers()
+            )
             response.raise_for_status()
             return response.json()

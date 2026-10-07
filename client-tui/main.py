@@ -2,6 +2,7 @@ from textual.app import App
 from textual.theme import Theme
 from screens.login_screen import LoginScreen
 from screens.arena_screen import ArenaScreen
+from screens.ending_screen import EndingScreen
 
 from api_client import BabelAPIClient
 
@@ -29,7 +30,8 @@ class BabelArenaApp(App):
     
     SCREENS = {
         "login": LoginScreen,
-        "arena": ArenaScreen
+        "arena": ArenaScreen,
+        "ending": EndingScreen,
     }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

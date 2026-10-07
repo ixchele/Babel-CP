@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from textual.app import ComposeResult
 import textual.app
+from textual import work
 
 from textual.screen import Screen
 from textual.containers import Horizontal, Vertical, Center, Middle
@@ -24,9 +25,12 @@ class ArenaScreen(Screen):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db_problems = {}
+        self.local_drafts = {}
+        self.solved_problems = set()
+        self.current_rank = None
+        self._contest_ended = False
 
     def compose(self) -> ComposeResult:
-        # --- TOP BAR ---
         with Horizontal(id="top-bar"):
             with Horizontal(id="window-controls-1"):
                 yield Switch(name="subject", value=True, id="switch-toggle-subject")
@@ -85,14 +89,32 @@ class ArenaScreen(Screen):
         self.chrono_timer = None
         self.end_time = None
 
+        await self.load_solved_status()
+
         await self.fetch_and_load_problems()
         await self.load_leaderboard()
         await self.load_user_data()
-        
+        await self.load_solved_status()
         self.fade_in_layout()
         
         await self.sync_contest_state()
         self.set_interval(15.0, self.sync_contest_state)
+        self.set_interval(10.0, self.refresh_live_stats)
+
+    async def refresh_live_stats(self) -> None:
+        try:
+            await self.load_user_data()
+            await self.load_leaderboard()
+        except Exception as e:
+            self.app.log.error(f"Live sync failed: {e}")
+
+
+    async def load_solved_status(self) -> None:
+        try:
+            solved_list = await self.app.api_client.get_solved_problems()
+            self.solved_problems = set(solved_list)
+        except Exception as e:
+            self.app.log.error(f"Failed to fetch solved problems: {e}")
 
     async def sync_contest_state(self) -> None:
         try:
@@ -115,15 +137,19 @@ class ArenaScreen(Screen):
 
     async def load_user_data(self) -> None:
         try:
-            btn_stats = self.query_one("#btn-toggle-stats")
+            btn_stats = self.query_one("#btn-toggle-stats", Button)
             
             profile = await self.app.api_client.get_my_profile()
             
             username = profile.get("username", "Unknown")
             score = profile.get("score", 0)
-            rank = profile.get("rank", 0)
+            new_rank = profile.get("rank", 0)
             
-            btn_stats.label = f"User: {username} | Score: {score} pts | Rank: {rank}"
+            if self.current_rank is not None and new_rank != self.current_rank:
+                GlitchEffect(btn_stats, 1)
+                
+            self.current_rank = new_rank
+            btn_stats.label = f"User: {username} | Score: {score} pts | Rank: {new_rank}"
             
         except Exception as e:
             self.app.log.error(f"User data UI crash: {e}")
@@ -161,12 +187,33 @@ class ArenaScreen(Screen):
     def sync_server_chrono(self, seconds_remaining: int) -> None:
         self.end_time = datetime.now() + timedelta(seconds=seconds_remaining)
 
+
+    def ending_transition(self) -> None:
+        def transition_callback():
+            self.app.switch_screen("ending")
+
+        self.styles.animate(
+            attribute="opacity",
+            value=0.0,
+            duration=1.5,
+            easing="out_cubic",
+            on_complete=transition_callback
+        )
+
     def stop_server_chrono(self) -> None:
-        """Déclenché quand le serveur envoie le paquet END_CONTEST."""
+        if getattr(self, "_contest_ended", False):
+            return
+            
+        self._contest_ended = True
+
         if self.chrono_timer is not None:
             self.chrono_timer.stop()
+            
         self.query_one("#chrono", Label).update("󰔛 00:00:00")
         self.end_time = None
+        
+        self.ending_transition()
+        # self.app.switch_screen("ending")
 
 
     def _update_chrono_display(self) -> None:
@@ -189,6 +236,13 @@ class ArenaScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":
+            if getattr(self, "is_evaluating", False):
+                self.notify("󰑮 Evaluation in progress. Please wait for the verdict...", severity="warning")
+                return
+            if hasattr(self, 'current_problem_id'):
+                editor = self.query_one("#code-input", TextArea)
+                self.local_drafts[self.current_problem_id] = editor.text
+            
             self.query_one("#editor-workspace").styles.display = "none"
             subject_picker = self.query_one("#subject-picker", OptionList)
             subject_picker.styles.display = "block"
@@ -279,12 +333,17 @@ class ArenaScreen(Screen):
         if event.option.id == "error":
             return
             
+
         picker = self.query_one("#subject-picker")
         challenge_id = event.option.id
         problem_data = self.db_problems.get(challenge_id)
         
         if problem_data:
-            self.current_problem_id = problem_data['id']
+            self.current_problem_id = int(problem_data['id'])
+            
+            solved_ints = {int(x) for x in self.solved_problems}
+            is_solved = self.current_problem_id in self.solved_problems
+            self.query_one("#push-tab", BabelPushTab).set_button_status(is_solved)
             
             try:
                 markdown_content = await self.app.api_client.get_problem_subject(self.current_problem_id)
@@ -305,7 +364,7 @@ class ArenaScreen(Screen):
         self.query_one("#subject-picker").styles.display = "none"
         self.query_one("#btn-back").styles.display = "block"
         self.set_focus(self.query_one("#code-input"))
-        
+            
 
         
         workspace = self.query_one("#editor-workspace")

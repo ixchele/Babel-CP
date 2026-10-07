@@ -34,6 +34,7 @@ class ProblemDB(Base):
     difficulty = Column(String(10), nullable=False)
     time_limit = Column(Integer, nullable=False)
     memory_limit = Column(Integer, nullable=False)
+    base_points = Column(Integer, nullable=True)
 
     test_cases = relationship("TestCaseDB", back_populates="problem", cascade="all, delete-orphan")
     submissions = relationship("SubmissionDB", back_populates="problem", cascade="all, delete-orphan")

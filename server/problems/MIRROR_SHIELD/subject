@@ -1,0 +1,40 @@
+# [ SECTOR_07 // MIRROR_SHIELD ]
+
+## [ 0x00_MISSION_BRIEF ]
+> **Concept:** String Manipulation / Reversal
+> **Threat Level:** EASY
+> **Preamble:** You intercepted a heavily obfuscated security token. The local security protocol simply reverses the characters of all incoming passwords. You need to reverse the intercepted string to find the original password.
+
+## [ 0x01_LORE ]
+A rogue street-doc's cyber-clinic is operating an illegal hardware augmentation ring in the basement. You need to access their client database to find a specific target. Their security system is notoriously rudimentary, relying on a basic mirror-encryption protocol. Whenever a password is created, the system stores it completely backwards. You have managed to sniff a packet containing the encrypted token, and now you just need to flip it to bypass the terminal and gain root access.
+
+## [ 0x02_OBJECTIVE ]
+Read a single string from standard input. Reverse the entire string and output the result.
+
+## [ 0x03_INPUT_STDIN ]
+- Line 1: A single string `S` containing alphanumeric characters and symbols.
+
+## [ 0x04_OUTPUT_STDOUT ]
+- Print the reversed string `S`.
+
+## [ 0x05_CONSTRAINTS ]
+- 1 <= length of S <= 1000
+- The string will not contain spaces.
+- Execution time limit: 1.0s
+- Memory limit: 64 MB
+
+## [ 0x06_EXAMPLES ]
+
+### Example 1
+**Input:**
+krowteN_orcimO
+
+**Output:**
+Omicro_Network
+
+### Example 2
+**Input:**
+!d3kcabA
+
+**Output:**
+Aback3d!

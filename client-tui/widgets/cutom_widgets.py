@@ -359,14 +359,16 @@ class BabelTextArea(TextArea):
 
 
 import asyncio
+from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Button, LoadingIndicator, RichLog, TextArea
 
+from widgets.effects import GlitchEffect 
+
 class BabelPushTab(Vertical):
 
     DEFAULT_CSS = """
-
     #btn-push {
         width: 30;
         height: 3;
@@ -392,59 +394,92 @@ class BabelPushTab(Vertical):
         yield LoadingIndicator(id="push-loading")
         yield RichLog(id="push-output", highlight=True, markup=True)
 
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-push":
-            await self.handle_push()
+            self.handle_push()
 
+    def set_button_status(self, is_solved: bool) -> None:
+        btn = self.query_one("#btn-push", Button)
+        log = self.query_one("#push-output", RichLog)
+        
+        log.clear()
+        
+        if is_solved:
+            btn.label = "󰄴 Challenge Passed"
+            btn.variant = "success"
+            btn.disabled = True
+            log.write("[dim]󰄴 You have already solved this challenge.[/dim]")
+        else:
+            btn.label = "Push Actual Code"
+            btn.variant = "primary"
+            btn.disabled = False
+            log.write("[dim]󰒋 Waiting for submission...[/dim]")
+
+    @work(exclusive=True)
     async def handle_push(self) -> None:
         btn = self.query_one("#btn-push", Button)
         loader = self.query_one("#push-loading", LoadingIndicator)
         log = self.query_one("#push-output", RichLog)
 
-        code_text = ""
+        self.screen.is_evaluating = True
+
+        problem_id = getattr(self.screen, "current_problem_id", None)
+        if problem_id is None:
+            log.write("[bold red]󰚌 Error: No challenge selected.[/bold red]")
+            return
+
         try:
             editor = self.screen.query_one("#code-input", TextArea)
             code_text = editor.text
+            selected_language = getattr(editor, "language", "cpp")
         except Exception:
-            try:
-                editor = self.app.query(TextArea).first()
-                code_text = editor.text
-            except Exception:
-                log.write("[bold red]Error: No text editor found in the application.[/bold red]")
-                return
+            log.write("[bold red]󰚌 Error: No text editor found.[/bold red]")
+            return
 
         if not code_text.strip():
-            log.write("[bold yellow]Warning: The editor is empty.[/bold yellow]")
+            log.write("[bold yellow]󰚌 Warning: The editor is empty.[/bold yellow]")
             return
 
         btn.disabled = True
         loader.styles.display = "block"
         log.clear()
-        log.write("[dim]Pushing code to Babel server...[/dim]")
+        log.write(f"[dim]󰑮 Pushing {selected_language} code to Babel server...[/dim]")
 
         try:
-            await asyncio.sleep(6.0) 
-            # NOTE : push the code the server
-            self.app.api_client.submit_code(1, editor.language, code_text)
+            result = await self.app.api_client.submit_code(problem_id, code_text, selected_language)
+            
+            status = result.get("status")
 
+            if status == "Accepted":
+                log.write(f"\n[bold green]󰄴 VERDICT: {status}[/bold green]")
+                if result.get("time"):
+                    log.write(f"[bold cyan]󰔛 Exec Time: {result['time']}s[/bold cyan]")
+                
+                btn.label = "󰄴 Challenge Passed"
+                btn.variant = "success"
 
-            pass_test = False
-
-            if pass_test:
-                log.write("[bold green][✔] Code successfully pushed and queued![/bold green]")
-                # btn.label = "you passed this challange"
-                btn.disabled = True
+                if hasattr(self.screen, "solved_problems"):
+                    self.screen.solved_problems.add(int(problem_id))
+                
+                if hasattr(self.screen, "load_leaderboard"):
+                    await self.screen.load_leaderboard()
+                if hasattr(self.screen, "load_user_data"):
+                    await self.screen.load_user_data()
 
             else:
-                log.write("[bold red][X] Code faild to pass server tests![/bold red]")
-                log.write("[bold red]Traces are available to find error![/bold red]")
-                GlitchEffect(self.screen.query_one("#push-tab"), 0.7)
+                color = "red" if status == "Compilation Error" else "yellow"
+                log.write(f"\n[bold {color}]󰅭 VERDICT: {status}[/bold {color}]")
+                
+                if result.get("compile_output"):
+                    log.write(f"\n[bold]󰘨 Trace:[/bold]\n{result['compile_output']}")
+                
+                GlitchEffect(self, 0.7)
                 btn.disabled = False
 
-
         except Exception as e:
-            log.write(f"[bold red]Server communication error: {e}[/bold red]")
+            log.write(f"\n[bold red]󰚌 Server communication error: {e}[/bold red]")
+            btn.disabled = False
 
         finally:
             loader.styles.display = "none"
-            # btn.disabled = False
+            self.screen.is_evaluating = False

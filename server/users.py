@@ -50,3 +50,18 @@ async def get_current_user_profile(
         "score": db_user.score or 0,
         "rank": rank
     }
+from database import ResolveDB
+
+@router.get("/me/solved", response_model=list[int])
+async def get_solved_problems(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    user = db.query(UserDB).filter(UserDB.username == current_user.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    solved_records = db.query(ResolveDB.id_problem).filter(ResolveDB.id_user == user.id).all()
+    
+    # Extract IDs from the tuples returned by SQLAlchemy
+    return [record[0] for record in solved_records]
