@@ -1,0 +1,51 @@
+[ SECTOR_09 // SIGNAL_STUTTER ]
+
+## [ 0x00_MISSION_BRIEF ]
+
+Concept: String Parsing / Deduplication
+Threat Level: EASY
+Preamble: A damaged orbital relay is broadcasting redundant data packets. You must clean the raw signal by removing any consecutive duplicate characters before feeding it into your decrypter.
+
+[ 0x01_LORE ]
+
+While tapping into the Militech orbital comms relay, you notice the data stream is severely lagging. A physical malfunction in the relay's hardware is causing a transmission stutter, sending the exact same data byte multiple times in a row. If you feed this raw, bloated stream into your cyberdeck's decryption module, it will cause a buffer overflow and crash your system, alerting the sysadmins. You must write a lightweight filter algorithm to compress all consecutive identical characters into a single instance, restoring the original payload.
+
+[ 0x02_OBJECTIVE ]
+
+Read a string from standard input. Remove any consecutive duplicate characters from the string. Output the cleaned string. Note that the filter is case-sensitive (e.g., 'a' and 'A' are different characters).
+
+[ 0x03_INPUT_STDIN ]
+
+Line 1: A single string S containing letters, numbers, and symbols.
+
+[ 0x04_OUTPUT_STDOUT ]
+
+Print the cleaned string S with consecutive duplicates removed.
+
+[ 0x05_CONSTRAINTS ]
+
+1 <= length of S <= 100,000
+
+S can contain uppercase and lowercase English letters, digits, and standard ASCII symbols.
+
+Execution time limit: 1.0s
+
+Memory limit: 64 MB
+
+[ 0x06_EXAMPLES ]
+
+Example 1
+
+Input:
+XXYYYZZZ-11122
+
+Output:
+XYZ-12
+
+Example 2
+
+Input:
+SSyysstteemm_OOnnlliinnee
+
+Output:
+System_Online

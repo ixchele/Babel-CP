@@ -28,4 +28,4 @@ async def launch_contest(username: str, password: str, duration: int):
             print(f"󰚌 Server rejected the request: {start_res.status_code}")
 
 if __name__ == "__main__":
-    asyncio.run(launch_contest("ixchele", "123456", 5))
+    asyncio.run(launch_contest("ixchele", "123456",120))

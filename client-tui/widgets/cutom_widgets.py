@@ -446,10 +446,30 @@ class BabelPushTab(Vertical):
         log.write(f"[dim]󰑮 Pushing {selected_language} code to Babel server...[/dim]")
 
         try:
-            result = await self.app.api_client.submit_code(problem_id, code_text, selected_language)
-            
-            status = result.get("status")
+            # Send code to the queue
+            submit_res = await self.app.api_client.submit_code(problem_id, code_text, selected_language)
+            submission_id = submit_res.get("id")
 
+            if not submission_id:
+                log.write("[bold red]󰚌 Error: API did not return a submission ID.[/bold red]")
+                btn.disabled = False
+                return
+
+            # Poll for execution status
+            while True:
+                result = await self.app.api_client.get_submission_status(submission_id)
+                status = result.get("status")
+
+                if status not in ["Pending", "Running"]:
+                    break
+
+                log.clear()
+                log.write(f"[dim]󰑮 Babel Judge is processing... [{status}][/dim]")
+                await asyncio.sleep(1.0)
+
+            log.clear()
+            
+            # Evaluate final verdict
             if status == "Accepted":
                 log.write(f"\n[bold green]󰄴 VERDICT: {status}[/bold green]")
                 if result.get("time"):
@@ -457,6 +477,7 @@ class BabelPushTab(Vertical):
                 
                 btn.label = "󰄴 Challenge Passed"
                 btn.variant = "success"
+                GlitchEffect(self, 0.7)
 
                 if hasattr(self.screen, "solved_problems"):
                     self.screen.solved_problems.add(int(problem_id))
@@ -467,11 +488,14 @@ class BabelPushTab(Vertical):
                     await self.screen.load_user_data()
 
             else:
-                color = "red" if status == "Compilation Error" else "yellow"
+                color = "red" if status in ["Compilation Error", "Runtime Error"] else "yellow"
                 log.write(f"\n[bold {color}]󰅭 VERDICT: {status}[/bold {color}]")
                 
                 if result.get("compile_output"):
-                    log.write(f"\n[bold]󰘨 Trace:[/bold]\n{result['compile_output']}")
+                    log.write(f"\n[bold]󰘨 Compiler Trace:[/bold]\n{result['compile_output']}")
+                
+                if result.get("logs"):
+                    log.write(f"\n[bold]󰘨 Execution Trace:[/bold]\n{result['logs']}")
                 
                 GlitchEffect(self, 0.7)
                 btn.disabled = False

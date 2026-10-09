@@ -94,10 +94,10 @@ class LoginScreen(Screen):
         succes_message = TerminalTyperLabel(
                 sequences=[
                     "Loged in succesfully!",
-                    "Ready to do something?",
-                    "bla bla bla bla!",
-                    "hahaha!",
-                    "IT'S TIME TO DUEL!"
+                    # "Ready to do something?",
+                    # "bla bla bla bla!",
+                    # "hahaha!",
+                    # "IT'S TIME TO DUEL!"
                     ],
                 id=self.ID_STATUS_TEXT,
                 on_complete=self.release_glitch

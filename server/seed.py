@@ -1,64 +1,49 @@
-import string
-import random
-from database import SessionLocal, UserDB, ProblemDB
+import os
+from database import engine, Base, SessionLocal, ProblemDB, TestCaseDB
 
-def generate_token(length: int = 6) -> str:
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
+Base.metadata.create_all(bind=engine)
 
-def seed_db():
+def force_seed():
     db = SessionLocal()
     
-    logins = ["ixchele", "zbengued", "student42"]
+    # Setup problem directory
+    problem_dir = "data/problems/echo"
+    os.makedirs(problem_dir, exist_ok=True)
     
-    print("--- Generated Credentials ---")
+    subject_file = os.path.join(problem_dir, "subject.md")
+    with open(subject_file, "w") as f:
+        f.write("# Echo Program\nRead a string from stdin and print it to stdout.")
     
-    for login in logins:
-        existing_user = db.query(UserDB).filter(UserDB.username == login).first()
-        if not existing_user:
-            password = generate_token()
-            new_user = UserDB(
-                username=login, 
-                hashed_password=password, 
-                role="student"
-            )
-            db.add(new_user)
-            print(f"Login: {login:<12} | Password: {password}")
-        else:
-            print(f"Login: {login:<12} | [Already exists]")
+    in_1_file = os.path.join(problem_dir, "in_1.txt")
+    out_1_file = os.path.join(problem_dir, "out_1.txt")
+    
+    with open(in_1_file, "w") as f: f.write("Hello 1337\n")
+    with open(out_1_file, "w") as f: f.write("Hello 1337")
 
-    print("\n--- Problems ---")
-    existing_problem = db.query(ProblemDB).filter(ProblemDB.id == 1).first()
-    if not existing_problem:
-        problem = ProblemDB(
-            title="Two Sum",
-            description="Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
-            subject="""
-# Two Sum
-
-Étant donné un tableau d'entiers `nums` et un entier `target`, retournez les indices des deux nombres dont la somme vaut `target`. 
-
-Chaque entrée possède exactement une solution et un même élément ne peut pas être utilisé deux fois.
-
-### Exemple
-- **Entrée :** `nums = [2, 7, 11, 15]`, `target = 9`
-- **Sortie :** `[0, 1]`
-
-### Contraintes
-- `2 <= nums.length <= 10^4`
-- `-10^9 <= nums[i] <= 10^9`
-- `-10^9 <= target <= 10^9`
-            """,
-            difficulty="Easy",
-            time_limit=2.0
-        )
-        db.add(problem)
-        print("Added Problem: Two Sum")
-    else:
-        print("Problem 'Two Sum' already exists.")
-
+    problem = ProblemDB(
+        title="Echo Program",
+        description="Read a string from stdin and print it to stdout.",
+        subject=subject_file,
+        difficulty="Easy",
+        time_limit=2,
+        memory_limit=256,
+        base_points=100
+    )
+    db.add(problem)
     db.commit()
+    db.refresh(problem)
+
+    tc1 = TestCaseDB(
+        stdin=in_1_file,
+        expected_output=out_1_file,
+        id_problem=problem.id
+    )
+    
+    db.add(tc1)
+    db.commit()
+    
+    print("[ OK ] Problem added with ID: " + str(problem.id))
     db.close()
 
 if __name__ == "__main__":
-    seed_db()
+    force_seed()
