@@ -1,44 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-import asyncio
+import redis
+from rq import Queue
 
-from database import UserDB, SubmissionDB, ResolveDB, ProblemDB
+from database import UserDB, SubmissionDB, ProblemDB
 from auth import get_db, get_current_user
 
 router = APIRouter(prefix="/api/submissions", tags=["Submissions"])
+
+# Initialize Redis queue connection
+redis_conn = redis.Redis(host='localhost', port=6379)
+task_queue = Queue('judge_queue', connection=redis_conn)
 
 class SubmitPayload(BaseModel):
     problem_id: int
     code: str
     language: str
-
-async def mock_judge_evaluator(code: str, problem_id: int) -> dict:
-    await asyncio.sleep(10.0)
-    
-    lower_code = code.lower()
-    if "error" in lower_code:
-        return {
-            "status": "Compilation Error", 
-            "time": "0.00s", 
-            "compile_output": "Mock error: syntax error detected.",
-            "logs": "decet error flan flania",
-        }
-    
-    stripped_code = lower_code.replace(" ", "")
-    if "while(1)" in stripped_code or "while(true)" in stripped_code:
-        return {
-            "status": "Time Limit Exceeded", 
-            "time": "5.00s",
-            "logs": "infinit loop",
-        }
-    
-    return {
-        "status": "Accepted", 
-        "time": "0.02s", 
-        "stdout": "All test cases passed.",
-        "logs": "All good"
-    }
 
 @router.post("/")
 async def submit_code(
@@ -54,6 +32,7 @@ async def submit_code(
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
 
+    # 1. Insert as Pending
     submission = SubmissionDB(
         id_user=user.id,
         id_problem=payload.problem_id,
@@ -65,44 +44,35 @@ async def submit_code(
     db.commit()
     db.refresh(submission)
 
-    eval_result = await mock_judge_evaluator(payload.code, payload.problem_id)
-    submission.status = eval_result["status"]
-    
-    if eval_result["status"] == "Accepted":
-        already_resolved = db.query(ResolveDB).filter(
-            ResolveDB.id_user == user.id,
-            ResolveDB.id_problem == payload.problem_id
-        ).first()
-        
-        if not already_resolved:
-            failed_attempts = db.query(SubmissionDB).filter(
-                SubmissionDB.id_user == user.id,
-                SubmissionDB.id_problem == payload.problem_id,
-                SubmissionDB.status != "Accepted",
-                SubmissionDB.id != submission.id
-            ).count()
+    # 2. Push to Redis queue (pass only IDs to the worker, not the whole code)
+    task_queue.enqueue(
+        "worker.evaluate_submission", 
+        submission_id=submission.id,
+        job_timeout="10s"
+    )
 
-            base_points = problem.base_points or 0
-            penalty = int(base_points * 0.10 * failed_attempts)
-            max_penalty = int(base_points * 0.50)
-            
-            points_earned = base_points - min(penalty, max_penalty)
-            user.score = (user.score or 0) + points_earned
-            
-            new_resolve = ResolveDB(
-                id_user=user.id,
-                id_problem=payload.problem_id,
-                number_of_tries=failed_attempts + 1,
-                points=points_earned
-            )
-            db.add(new_resolve)
-
-    db.commit()
-
+    # 3. Return immediately
     return {
         "id": submission.id,
         "status": submission.status,
-        "time": eval_result.get("time"),
-        "stdout": eval_result.get("stdout"),
-        "compile_output": eval_result.get("compile_output")
+        "message": "Submission queued."
+    }
+
+# New route for Babel-CP to poll the result
+@router.get("/{submission_id}")
+async def get_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    submission = db.query(SubmissionDB).filter(SubmissionDB.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+        
+    return {
+        "id": submission.id,
+        "status": submission.status,
+        # You will need to add these fields to SubmissionDB if they aren't there yet
+        "time": getattr(submission, 'execution_time', None),
+        "compile_output": getattr(submission, 'compile_output', None)
     }

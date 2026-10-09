@@ -39,6 +39,13 @@ class LoginScreen(Screen):
     def on_mount(self) -> None:
         self.theme = "theme-babel"
 
+        self.styles.animate(
+            attribute="opacity",
+            value=1.0,
+            duration=1.5,
+            easing="out_cubic"
+        )
+
     def compose(self) -> ComposeResult:
         with Horizontal(id=self.ID_LOGIN_DIALOG):
 

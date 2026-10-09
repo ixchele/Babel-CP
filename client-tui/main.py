@@ -43,6 +43,7 @@ class BabelArenaApp(App):
 
         self.push_screen("login")
         # self.push_screen("arena")
+        # self.push_screen("ending")
 
 
 if __name__ == "__main__":

@@ -101,6 +101,15 @@ class BabelAPIClient:
             response.raise_for_status()
             return response.json()
 
+    async def get_submission_status(self, submission_id: int) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/submissions/{submission_id}",
+                headers=self._get_auth_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def get_solved_problems(self) -> list:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -118,3 +127,4 @@ class BabelAPIClient:
             )
             response.raise_for_status()
             return response.json()
+
